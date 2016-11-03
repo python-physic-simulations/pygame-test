@@ -1,5 +1,6 @@
-#screen 1.0 test
-import sys, pygame, time, random
+#! /usr/bin/env python3
+#screen 1.1 test
+import sys, pygame, time, random, _thread
 from threading import Thread
 from pygame.locals import *
 
@@ -31,6 +32,16 @@ class Point():
         return (self.x,self.y)
     def as_int_tuple(self):
         return (int(self.x),int(self.y))
+class vector():
+    def __init__(self , x = 0, y = 0):
+        self.x = x
+        self.y = y
+    def __add__(self, oper):
+        return vector(self.x + oper.x, self.y + oper.y)
+    def __mul__(self, times):
+        return vector(self.x * times, self.y * times)
+        
+
 class graphical_view(Thread):
     def __init__(self, screen_width = 800,\
         screen_height = 600):
@@ -60,26 +71,52 @@ class graphical_view(Thread):
             self.surface.blit(time_surface, (5, self.height - time_height))
             for point in draw_list:
                 pixelCenter= Point(self.to_pixel(point.x), self.to_pixel(point.y))
-                pygame.draw.circle( self.surface , RED, (pixelCenter.x - self.x ,\
-                self.y - pixelCenter.y), 7 )
+                pygame.draw.circle( self.surface , RED, (int(pixelCenter.x) - self.x ,\
+                self.y - int(pixelCenter.y)), 7 )
             for event in pygame.event.get():
                 if event.type == QUIT:
                      pygame.quit()
+                     _thread.interrupt_main()
                      sys.exit()
             self.clock.tick(30)
             pygame.display.update()
-draw_list.append(Point(0,0))
+
+
+class command(Thread):
+    """class for command line interface"""
+    def __init__(self):
+        Thread.__init__(self)
+    def run(self):
+        while True:
+            command = input("insert command>> ")
+    
+class physic_object(Point): #inherit form Point ??? could not be a good option
+    def __init__(self, settings={'x':0, 'y':0, 'speed': vector(), 'acc': vector()}):
+        super().__init__(settings['x'], settings['y'])
+        self.speed = settings['speed']
+        self.acc = settings['acc']
+    
+ob = physic_object({ 'speed':vector(5, 15), 'acc':vector(0, -100), 'x' : 0, 'y':0 })
+draw_list.append(ob)
 print("main")
-Time = time_counter()
+Time = time_counter(0.01)
 print("current time: ",Time.get_seconds())
 screen = graphical_view()
 screen.start()
-
+command = command()
+command.start()
+debug_file=open("punti parabola.debug.csv",'w')
 while True:
-    draw_list.append(Point(random.randint(0, 80),random.randint(0, 60)))
+    
+    t = Time.get_seconds()
+    ob.y = ob.y + ob.speed.y*t + ob.acc.y*t*t*0.5
+    ob.x = ob.x + ob.speed.x*t
+    print("X: ", ob.x ,"   y: ",ob.y, "\n" )
+    debug_file.write(str(ob.x)+','+str(ob.y)+'\n')
+#    draw_list.append(Point(random.randint(0, 80),random.randint(0, 60)))
 #    increment the time
     Time.increment()
 #    for testinf pouprose sleep for one second
-    time.sleep(1)
+    time.sleep(0.1)
     
 

@@ -3,6 +3,7 @@
 import sys, pygame, time, random, _thread
 from threading import Thread
 from sympy.solvers import solve
+from sympy import Symbol
 from pygame.locals import *
 
 BLACK = (0,0,0)
@@ -16,10 +17,15 @@ class time_counter():
     def __init__(self, one_second = 1):
         self.time = 0
         self.one_second = one_second
+        self.old_time = self.time
     def get_seconds(self):
          """return the real time in seconds using the incremented time
          and one_second """
          return self.time * self.one_second   
+    def get_seconds_diff(self):
+        sec = (self.time - self.old_time) * self.one_second
+        self.old_time = self.time
+        return sec
     def increment(self):
         self.time += 1
         return self.get_seconds()
@@ -88,52 +94,91 @@ class command(Thread):
     def __init__(self):
         Thread.__init__(self)
     def run(self):
+        g = {}
+        l = {}
         while True:
             command = input("insert command>> ")
+            exec("ris = "+command, g, l)
+            print(l['ris'])
     
 class physic_object(Point): #inherit form Point ??? could not be a good option
     def __init__(self, settings={'x':0, 'y':0, 'speed': vector()}):
         super().__init__(settings['x'], settings['y'])
         self.speed = settings['speed']
-        
+    def __str__(self):
+        return "x : {!s} y: {!s} speed : {!s}, {!s}.\n".format(\
+        self.x, self.y, self.speed.x, self.speed.y)
 class gravity_field():
-    def __init__(self, g = 9.81):
-        self.g = 9.81
-    def update_pos(self, ob):
+    def __init__(self, g = -98.1):
+        self.g = g
+    def update_pos(self, ob,t):
         ob_set = {
             'x' : ob.x + ob.speed.x * t,
-            'y' : ob.y + ob.speed.y * t + 0.5 * self.g * t * t,
-            'speed' : vector(ob.x, ob.y  + self.g * t),
+            'y' : ob.y + ob.speed.y * t + 0.5 * self.g * t**2,
+            'speed' : vector(ob.speed.x, ob.speed.y  + self.g * t),
             }
         return physic_object(ob_set)
-    def time_at_x_pos(self, x):
-        t = Symbol("t", positive=True)
-        solve(ob.y - x + ob.speed.y * t + 0.5 * self.g * t * t, t)
-
-
-
-
-
-
-
-
-ob = physic_object({ 'speed':vector(5, 15), 'acc':vector(0, -100), 'x' : 0, 'y':0 })
+    def time_at_y_pos(self, ob, y):
+        t = Symbol('t', positive=True)
+        ris = solve( t*ob.speed.y + t**2 * 0.5 * self.g - y + ob.y , t)
+        
+        return ris[0]
+class Bounce():
+    def __init__(self, y = 0):
+        self.y = y
+        pass
+    def update_ob(self, ob):
+        ob_set = {
+            'x' : ob.x, 
+            'y' : self.y, 
+            'speed' : vector(ob.speed.x, - ob.speed.y)
+        }
+        return physic_object(ob_set)
+    def check(self, ob):
+        if ob.y <= 0: 
+            return True
+class physic_world():
+    def __init__(self):
+        self.gravity = gravity_field()
+        self.bounce = Bounce()
+    def update(self):
+        for i, ob in enumerate(draw_list):
+            print('ob :', ob)
+            t = Time.get_seconds_diff()
+            new_ob = self.gravity.update_pos(ob, t)
+            if self.bounce.check(new_ob):
+                change_time = self.gravity.time_at_y_pos(ob, self.bounce.y)
+                new_ob = self.gravity.update_pos(ob, t)
+                print("at zero y?",new_ob)
+                new_ob = self.bounce.update_ob(new_ob)
+                print('after bounce', new_ob)
+                print('change_time: ',change_time)
+                print('time :',t)                
+                new_time = t - change_time
+                print('new_time : ', new_time)
+                new_ob = self.gravity.update_pos(new_ob, new_time)
+                print('with pos y speed',new_ob )
+#                sys.exit()
+            draw_list[i] = new_ob
+#            print("new_ob : ",draw_list[i])
+ob = physic_object({ 'speed':vector(5, 15), 'x' : 3, 'y':3 })
 draw_list.append(ob)
 print("main")
 Time = time_counter(0.01)
 print("current time: ",Time.get_seconds())
 screen = graphical_view()
 screen.start()
-command = command()
-command.start()
+#command = command()
+#command.start()
 debug_file=open("punti parabola.debug.csv",'w')
+world = physic_world()
 while True:
-    
-    t = Time.get_seconds()
-    ob.y = ob.y + ob.speed.y*t + ob.acc.y*t*t*0.5
-    ob.x = ob.x + ob.speed.x*t
-    print("X: ", ob.x ,"   y: ",ob.y, "\n" )
-    debug_file.write(str(ob.x)+','+str(ob.y)+'\n')
+    world.update()
+#    t = Time.get_seconds()
+#    ob.y = ob.y + ob.speed.y*t + ob.acc.y*t*t*0.5
+#    ob.x = ob.x + ob.speed.x*t
+#    print("X: ", ob.x ,"   y: ",ob.y, "\n" )
+#    debug_file.write(str(ob.x)+','+str(ob.y)+'\n')
 #    draw_list.append(Point(random.randint(0, 80),random.randint(0, 60)))
 #    increment the time
     Time.increment()

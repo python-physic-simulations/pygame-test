@@ -2,8 +2,8 @@
 #screen 1.1 test
 import sys, pygame, time, random, _thread
 from threading import Thread
-from sympy.solvers import solve
-from sympy import Symbol
+#from sympy.solvers import solve
+from sympy import *
 from pygame.locals import *
 
 BLACK = (0,0,0)
@@ -33,8 +33,8 @@ class time_counter():
 
 class Point():
     def __init__(self,x ,y):
-        self.x = x
-        self.y = y
+        self.x = S(x)
+        self.y = S(y)
     def as_tuple(self):
         return (self.x,self.y)
     def as_int_tuple(self):
@@ -59,7 +59,7 @@ class graphical_view(Thread):
         self.height = screen_height
         self.surface = pygame.display.set_mode((screen_width, screen_height))
         self.surface.fill(WHITE)
-        self.one_meter = 10
+        self.one_meter = Integer(10)
         self.x = 0
         self.y = screen_height
         self.clock = pygame.time.Clock()
@@ -72,14 +72,14 @@ class graphical_view(Thread):
         while True:
             self.surface.fill(WHITE)
 #            print the currentime on the screen
-            time_string = str(Time.get_seconds()) + " s"
+            time_string = str(float(Time.get_seconds())) + " s"
             time_surface = self.myfont.render(time_string, 1, GREEN)
             time_height = self.myfont.size(time_string)[1]
             self.surface.blit(time_surface, (5, self.height - time_height))
             for point in draw_list:
                 pixelCenter= Point(self.to_pixel(point.x), self.to_pixel(point.y))
-                pygame.draw.circle( self.surface , RED, (int(pixelCenter.x) - self.x ,\
-                self.y - int(pixelCenter.y)), 7 )
+                pygame.draw.circle( self.surface , RED, (int(N(pixelCenter.x)) - self.x ,\
+                self.y - int(N(pixelCenter.y))), 7 )
             for event in pygame.event.get():
                 if event.type == QUIT:
                      pygame.quit()
@@ -109,19 +109,26 @@ class physic_object(Point): #inherit form Point ??? could not be a good option
         return "x : {!s} y: {!s} speed : {!s}, {!s}.\n".format(\
         self.x, self.y, self.speed.x, self.speed.y)
 class gravity_field():
-    def __init__(self, g = -98.1):
+    def __init__(self, g = Rational(-981,100)):
         self.g = g
     def update_pos(self, ob,t):
         ob_set = {
             'x' : ob.x + ob.speed.x * t,
-            'y' : ob.y + ob.speed.y * t + 0.5 * self.g * t**2,
+            'y' : ob.y + ob.speed.y * t + Rational(1,2) * self.g * t**2,
             'speed' : vector(ob.speed.x, ob.speed.y  + self.g * t),
             }
         return physic_object(ob_set)
-    def time_at_y_pos(self, ob, y):
+    def time_at_y_pos(self, ob, y,time):
+        print('ob before ', ob)
         t = Symbol('t', positive=True)
-        ris = solve( t*ob.speed.y + t**2 * 0.5 * self.g - y + ob.y , t)
-        
+        ris = solve( t*ob.speed.y + t**2 * Rational(1,2) * self.g + ob.y -y , t)
+        print(ris)
+        ob_set = {
+            'x' : ob.x + ob.speed.x*time,
+            'y' : y,
+            'speed' : vector(ob.speed.x, -sqrt(2*self.g*(ob.y - y) + ob.speed.y**2) )
+        }
+#        print('ob :',ob,'at y:',y)
         return ris[0]
 class Bounce():
     def __init__(self, y = 0):
@@ -130,25 +137,27 @@ class Bounce():
     def update_ob(self, ob):
         ob_set = {
             'x' : ob.x, 
-            'y' : self.y, 
-            'speed' : vector(ob.speed.x, - ob.speed.y)
+            'y' : ob.y, 
+            'speed' : vector(ob.speed.x,  abs(ob.speed.y))
         }
         return physic_object(ob_set)
     def check(self, ob):
-        if ob.y <= 0: 
+        if ob.y <= self.y  and ob.speed.y < 0 : 
             return True
 class physic_world():
     def __init__(self):
         self.gravity = gravity_field()
         self.bounce = Bounce()
     def update(self):
+        t = Time.get_seconds_diff()
         for i, ob in enumerate(draw_list):
-            print('ob :', ob)
-            t = Time.get_seconds_diff()
+#            print('ob :', ob)
+            
             new_ob = self.gravity.update_pos(ob, t)
             if self.bounce.check(new_ob):
-                change_time = self.gravity.time_at_y_pos(ob, self.bounce.y)
+                change_time = self.gravity.time_at_y_pos(ob, self.bounce.y,t)
                 new_ob = self.gravity.update_pos(ob, t)
+                draw_list[i] = new_ob
                 print("at zero y?",new_ob)
                 new_ob = self.bounce.update_ob(new_ob)
                 print('after bounce', new_ob)
@@ -161,16 +170,16 @@ class physic_world():
 #                sys.exit()
             draw_list[i] = new_ob
 #            print("new_ob : ",draw_list[i])
-ob = physic_object({ 'speed':vector(5, 15), 'x' : 3, 'y':3 })
+ob = physic_object({ 'speed':vector(4, 25), 'x' : S(0) ,'y': S(0)})
 draw_list.append(ob)
 print("main")
-Time = time_counter(0.01)
+Time = time_counter(Rational(1,100))
 print("current time: ",Time.get_seconds())
 screen = graphical_view()
 screen.start()
 #command = command()
 #command.start()
-debug_file=open("punti parabola.debug.csv",'w')
+#debug_file=open("punti parabola.debug.csv",'w')
 world = physic_world()
 while True:
     world.update()
@@ -183,6 +192,6 @@ while True:
 #    increment the time
     Time.increment()
 #    for testinf pouprose sleep for one second
-    time.sleep(0.1)
-    
+    time.sleep(0.008)
+
 
